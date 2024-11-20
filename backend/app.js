@@ -19,38 +19,19 @@ app.set('views', path.join(__dirname, '../frontend/views'));
 app.use(express.static(path.join(__dirname, '../frontend/public')));
 app.use(express.urlencoded({ extended: true }));
 
-// Local Database Configuration
-const localDbConfig = {
-    host: 'localhost',
-    user: 'root',
-    password: '123456',
-    database: 'SciAstra',
+// Database connection
+const pool = mysql.createPool({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_DATABASE,
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0
-};
-
-// Railway Database Configuration
-const railwayDbConfig = {
-    host: process.env.DB_HOST_RAILWAY,
-    user: process.env.DB_USER_RAILWAY,
-    password: process.env.DB_PASSWORD_RAILWAY,
-    database: process.env.DB_DATABASE_RAILWAY,
-    port: process.env.DB_PORT_RAILWAY,
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
-};
-
-// Use Railway or Local Database Based on Environment Variable
-const dbConfig = process.env.USE_RAILWAY === 'true' ? railwayDbConfig : localDbConfig;
-
-// Create Database Pool
-const pool = mysql.createPool(dbConfig).promise();
-
+}).promise();
 module.exports = { app, pool };
-
 // Route for rendering index.ejs
+
 app.get('/', async (req, res) => {
     try {
         const blogsQuery = 'SELECT Blog_img, Blog_title, Blog_description, created_at, blog_link FROM blogs';
