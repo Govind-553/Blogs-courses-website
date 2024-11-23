@@ -4,7 +4,7 @@ const formidable = require('formidable');
 const path = require('path');
 const fs = require('fs');
 const mysql = require('mysql2');
-const redis = require('redis');
+const { createClient } = require('redis'); // Add Redis import
 
 const app = express();
 const http = require('http').Server(app);
@@ -30,10 +30,16 @@ const localDbConfig = {
 };
 
 const pool = mysql.createPool(localDbConfig).promise();
-// Redis Configuration
-const redisClient = redis.createClient({
-    url: process.env.REDIS_URL 
+
+// Redis Configuration - use the Redis client created with `createClient`
+const redisClient = createClient({
+    password: process.env.REDIS_PASSWORD, // Your Redis password from the .env file
+    socket: {
+        host: 'redis-18267.c16.us-east-1-2.ec2.redns.redis-cloud.com',
+        port: 18267
+    }
 });
+
 // Connect to Redis
 (async () => {
     try {
