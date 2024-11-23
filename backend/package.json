@@ -7,7 +7,13 @@
     "start": "node app.js",
     "dev": "nodemon app.js"
   },
-  "keywords": ["blogs", "courses", "razorpay", "nodejs", "express"],
+  "keywords": [
+    "blogs",
+    "courses",
+    "razorpay",
+    "nodejs",
+    "express"
+  ],
   "author": "govind choudhari",
   "license": "MIT",
   "dependencies": {
@@ -18,6 +24,7 @@
     "formidable": "^3.5.2",
     "mysql2": "^3.11.4",
     "razorpay": "^2.9.5",
+    "redis": "^4.7.0",
     "serverless-http": "^3.2.0"
   },
   "devDependencies": {

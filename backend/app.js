@@ -4,18 +4,17 @@ const formidable = require('formidable');
 const path = require('path');
 const fs = require('fs');
 const mysql = require('mysql2');
+const redis = require('redis');
 
 const app = express();
 const http = require('http').Server(app);
 
-// Debug views path
 console.log('Views directory path:', path.join(__dirname, '../frontend/views'));
 
 // Set the view engine and views directory
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, '../frontend/views'));
 
-// Serve static files from the public folder
 app.use(express.static(path.join(__dirname, '../frontend/public')));
 app.use(express.urlencoded({ extended: true }));
 
@@ -29,29 +28,40 @@ const localDbConfig = {
     connectionLimit: 10,
     queueLimit: 0
 };
-// Railway database configuration
-const railwayDbConfig = {
-    host: process.env.DB_HOST_RAILWAY,
-    user: process.env.DB_USER_RAILWAY,
-    password: process.env.DB_PASSWORD_RAILWAY,
-    database: process.env.DB_DATABASE_RAILWAY,
-    port: process.env.DB_PORT_RAILWAY,
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
-};
 
-// Use Railway or Local Database Based on Environment Variable
-const dbConfig = process.env.USE_RAILWAY === 'true' ? railwayDbConfig : localDbConfig;
+const pool = mysql.createPool(localDbConfig).promise();
+// Redis Configuration
+const redisClient = redis.createClient({
+    url: process.env.REDIS_URL 
+});
+// Connect to Redis
+(async () => {
+    try {
+        await redisClient.connect();
+        console.log('Connected to Redis!');
+    } catch (err) {
+        console.error('Redis Connection Error:', err);
+    }
+})();
 
-// Create Database Pool
-const pool = mysql.createPool(dbConfig).promise();
-
-module.exports = { app, pool };
+module.exports = { app, pool, redisClient };
 
 // Route for rendering index.ejs
 app.get('/', async (req, res) => {
     try {
+        // Key for Redis caching
+        const redisKey = 'home_data';
+
+        // Check if data exists in Redis
+        const cachedData = await redisClient.get(redisKey);
+
+        if (cachedData) {
+            console.log('Data fetched from Redis cache.');
+            const { blogs, freeCourses, paidCourses } = JSON.parse(cachedData);
+            return res.render('index', { blogs, freeCourses, paidCourses });
+        }
+
+        // Fetch Blogs from MySQL
         const blogsQuery = 'SELECT Blog_img, Blog_title, Blog_description, created_at, blog_link FROM blogs';
         const [blogResults] = await pool.query(blogsQuery);
         const blogs = blogResults.map(blog => ({
@@ -59,6 +69,7 @@ app.get('/', async (req, res) => {
             Blog_img: `data:image/jpeg;base64,${Buffer.from(blog.Blog_img).toString('base64')}`
         }));
 
+        // Fetch Free Courses from MySQL
         const freeCoursesQuery = `
             SELECT course_img, coursename, price, link
             FROM courses 
@@ -70,6 +81,7 @@ app.get('/', async (req, res) => {
             course_img: `data:image/jpeg;base64,${Buffer.from(course.course_img).toString('base64')}`
         }));
 
+        // Fetch Paid Courses from MySQL
         const paidCoursesQuery = `
             SELECT course_img, coursename, price, link 
             FROM courses 
@@ -81,6 +93,10 @@ app.get('/', async (req, res) => {
             course_img: `data:image/jpeg;base64,${Buffer.from(course.course_img).toString('base64')}`
         }));
 
+        const dataToCache = { blogs, freeCourses, paidCourses };
+        await redisClient.setEx(redisKey, 3600, JSON.stringify(dataToCache));
+
+        // Render the data
         res.render('index', { blogs, freeCourses, paidCourses });
     } catch (err) {
         console.error('Error fetching data:', err);
